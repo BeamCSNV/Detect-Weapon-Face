@@ -316,6 +316,343 @@ cap.release()
 cv2.destroyAllWindows()
 
 
------------------------------------------------------------------------------
+------------------------------------ รันไฟล์ encodings.Pickle ไม่เซฟรูป -----------------------------------------
 
-ฉันลองเอาโค้ดไปรันแล้วก็ยัง มีการสร้างโฟลเดอร์ไปเรื่อยๆ โฟลเดอร์ dataset และในโฟลเดอร์นี้ ก็สร้างโฟลเดอร์เก็บรูปไปเรื่อยๆทุกโฟลเดอร์มี 1 รูป ทั้งๆที่ควรจะสร้างโฟลเดอร์เดียวและเซฟรูปลงในโฟลเดอร์เดียวที่สร้างไปเรื่อยๆ เพราะพอรันโปรแกรมขึ้นมาแล้วฉันได้ทดสอบโดยการใช้แค่คนคนเดียวให้กล้องได้ตรวจจับใบหน้าหรือฉันต้องเพิ่มแก้ไขอะไรตรงไหนหรือเปล่า
+from imutils.video import VideoStream
+from imutils.video import FPS
+import face_recognition
+import imutils
+import pickle
+import time
+import cv2
+import random
+
+# โหลด face encodings และตัวตรวจหน้า
+encodingsP = "C:/Users/HP/Desktop/Yolov8 Detect Face&Weapon/Example Pickle/encodings.pickle"
+print("[INFO] กำลังโหลด encodings + ตัวตรวจหน้า...")
+data = pickle.loads(open(encodingsP, "rb").read())
+
+# กำหนดค่าเริ่มต้นให้กับ currentname
+currentname = "ไม่รู้จัก"
+
+# เริ่มต้น video stream และรอให้มันอุ่นขึ้น
+vs = VideoStream(src=0, framerate=10).start()
+time.sleep(2.0)
+
+# เริ่มต้น FPS counter
+fps = FPS().start()
+
+while True:
+    # อ่านเฟรมจาก video stream และปรับขนาด
+    frame = vs.read()
+    frame = imutils.resize(frame, width=500)
+
+    # ตรวจหาตำแหน่งและ encodings ของใบหน้า
+    boxes = face_recognition.face_locations(frame)
+    encodings = face_recognition.face_encodings(frame, boxes)
+    names = []
+
+    for encoding in encodings:
+        # เปรียบเทียบ face encodings
+        matches = face_recognition.compare_faces(data["encodings"], encoding)
+        name = "ไม่รู้จัก"
+
+        if True in matches:
+            # ระบุบุคคลที่มีการตรงคู่มากที่สุด
+            matchedIdxs = [i for (i, b) in enumerate(matches) if b]
+            counts = {}
+            
+            for i in matchedIdxs:
+                name = data["names"][i]
+                counts[name] = counts.get(name, 0) + 1
+            
+            name = max(counts, key=counts.get)
+
+            # พิมพ์ชื่อถ้าต่างจากชื่อปัจจุบัน
+            if currentname != name:
+                currentname = name
+                print(currentname)
+        else:
+            # กำหนดชื่อแบบสุ่มหากไม่พบการตรงคู่
+            num = random.random()
+            data["names"].append(str(num))
+            data["encodings"].append(encoding)
+            print(data["names"])
+
+            # อัปเดตไฟล์ pickle ด้วยข้อมูลใหม่
+            with open("encodings.pickle", "wb") as f:
+                f.write(pickle.dumps(data))
+
+        names.append(name)
+
+    # วาดสี่เหลี่ยมและชื่อลงบนเฟรม
+    for ((top, right, bottom, left), name) in zip(boxes, names):
+        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 225), 2)
+        y = top - 15 if top - 15 > 15 else top + 15
+        cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 255), 2)
+
+    # แสดงเฟรม
+    cv2.imshow("การระบุใบหน้ากำลังทำงาน", frame)
+
+    # ตรวจสอบปุ่ม 'q' เพื่อออกจากลูป
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord("q"):
+        break
+
+    # อัปเดต FPS counter
+    fps.update()
+
+# หยุด video stream และ FPS counter
+fps.stop()
+print("[INFO] เวลาที่ใช้: {:.2f}".format(fps.elapsed()))
+print("[INFO] ประมาณ FPS: {:.2f}".format(fps.fps()))
+
+# ปิดหน้าต่างทั้งหมด
+cv2.destroyAllWindows()
+vs.stop()
+
+------------------------------------ รันไฟล์ encodings.pickle เซฟรูปใบหน้าใหม่พร้อมกับจดจำ -----------------------------------------
+
+import os
+import cv2
+import imutils
+from imutils.video import VideoStream
+from imutils.video import FPS
+import face_recognition
+import pickle
+import time
+import random
+
+currentname = "ไม่รู้จัก"
+
+# โหลด face encodings และตัวตรวจหน้า
+encodingsP = "C:/Users/HP/Desktop/Yolov8 Detect Face&Weapon/Example Pickle/encodings.pickle"
+print("[INFO] กำลังโหลด encodings + ตัวตรวจหน้า...")
+data = pickle.loads(open(encodingsP, "rb").read())
+
+# กำหนดที่เก็บ dataset
+dataset_path = "C:/Users/HP/Desktop/Yolov8 Detect Face&Weapon/Example Pickle/dataset"
+if not os.path.exists(dataset_path):
+    os.makedirs(dataset_path)  # สร้างโฟลเดอร์เก็บรูปใบหน้าใหม่
+
+# เริ่มต้น video stream และรอให้มันอุ่นขึ้น
+vs = VideoStream(src=0, framerate=10).start()
+time.sleep(2.0)
+
+# เริ่มต้น FPS counter
+fps = FPS().start()
+
+while True:
+    # อ่านเฟรมจาก video stream และปรับขนาด
+    frame = vs.read()
+    frame = imutils.resize(frame, width=500)
+
+    # ตรวจหาตำแหน่งและ encodings ของใบหน้า
+    boxes = face_recognition.face_locations(frame)
+    encodings = face_recognition.face_encodings(frame, boxes)
+    names = []
+
+    for encoding in encodings:
+        # เปรียบเทียบ face encodings
+        matches = face_recognition.compare_faces(data["encodings"], encoding)
+        name = "ไม่รู้จัก"
+
+        if True in matches:
+            # ระบุบุคคลที่มีการตรงคู่มากที่สุด
+            matchedIdxs = [i for (i, b) in enumerate(matches) if b]
+            counts = {}
+
+            for i in matchedIdxs:
+                name = data["names"][i]
+                counts[name] = counts.get(name, 0) + 1
+
+            name = max(counts, key=counts.get)
+
+            # พิมพ์ชื่อถ้าต่างจากชื่อปัจจุบัน
+            if currentname != name:
+                currentname = name
+                print(currentname)
+        else:
+            # เซฟรูปใบหน้าใน dataset และทำการเทรนใหม่เฉพาะใบหน้านี้
+            num = random.random()
+            data["names"].append(str(num))
+            data["encodings"].append(encoding)
+            print(data["names"])
+
+            face_id = len(os.listdir(dataset_path)) + 1
+            face_folder_path = os.path.join(dataset_path, f"ID{face_id:02d}")
+
+            if not os.path.exists(face_folder_path):
+                os.makedirs(face_folder_path)
+
+            face_filename = os.path.join(face_folder_path, f"{face_id:02d}.jpg")
+            cv2.imwrite(face_filename, frame[boxes[0][0]:boxes[0][2], boxes[0][3]:boxes[0][1]])
+
+            # ทำการเทรนข้อมูลใหม่เฉพาะใบหน้านี้
+            train_data = {"encodings": [encoding], "names": [str(num)]}
+            with open(encodingsP, "wb") as f:
+                f.write(pickle.dumps(train_data))
+
+        names.append(name)
+
+    # วาดสี่เหลี่ยมและชื่อลงบนเฟรม
+    for ((top, right, bottom, left), name) in zip(boxes, names):
+        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 225), 2)
+        y = top - 15 if top - 15 > 15 else top + 15
+        cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 255), 2)
+
+    # แสดงเฟรม
+    cv2.imshow("การระบุใบหน้ากำลังทำงาน", frame)
+
+    # ตรวจสอบปุ่ม 'q' เพื่อออกจากลูป
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord("q"):
+        break
+
+    # อัปเดต FPS counter
+    fps.update()
+
+# หยุด video stream และ FPS counter
+fps.stop()
+print("[INFO] เวลาที่ใช้: {:.2f}".format(fps.elapsed()))
+print("[INFO] ประมาณ FPS: {:.2f}".format(fps.fps()))
+
+# ปิดหน้าต่างทั้งหมด
+cv2.destroyAllWindows()
+vs.stop()
+
+------------------------------------ รันไฟล์ encodings.pickle เซฟรูปใบหน้าใหม่พร้อมกับจดจำและแจ้งเตือนเวลาพบใบหน้าพร้อมกับรุปภาพ ต้องแก้ไข -----------------------------------------
+
+import os
+import cv2
+import imutils
+from imutils.video import VideoStream
+from imutils.video import FPS
+import face_recognition
+import pickle
+import time
+import random
+import requests
+
+currentname = "ไม่รู้จัก"  # กำหนดค่าเริ่มต้นให้กับ currentname
+
+def send_line_notify(message, image_path=None):
+    url = "https://notify-api.line.me/api/notify"
+    token = "6n6NUX9mdUjHysH3IqGEdyuN5Wmh6BPZwaZNlzuJr44"
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    payload = {
+        "message": message
+    }
+
+    if image_path:
+        files = {"imageFile": open(image_path, "rb")}
+        response = requests.post(url, headers=headers, params=payload, files=files)
+    else:
+        response = requests.post(url, headers=headers, params=payload)
+
+    if response.status_code != 200:
+        print(f"Error sending Line Notify: {response.text}")
+
+# โหลด face encodings และตัวตรวจหน้า
+encodingsP = "C:/Users/HP/Desktop/Yolov8 Detect Face&Weapon/Example Pickle/encodings.pickle"
+print("[INFO] กำลังโหลด encodings + ตัวตรวจหน้า...")
+data = pickle.loads(open(encodingsP, "rb").read())
+
+# กำหนดที่เก็บ dataset
+dataset_path = "C:/Users/HP/Desktop/Yolov8 Detect Face&Weapon/Example Pickle/dataset"
+if not os.path.exists(dataset_path):
+    os.makedirs(dataset_path)  # สร้างโฟลเดอร์เก็บรูปใบหน้าใหม่
+
+# เริ่มต้น video stream และรอให้มันอุ่นขึ้น
+vs = VideoStream(src=0, framerate=10).start()
+time.sleep(2.0)
+
+# เริ่มต้น FPS counter
+fps = FPS().start()
+
+while True:
+    # อ่านเฟรมจาก video stream และปรับขนาด
+    frame = vs.read()
+    frame = imutils.resize(frame, width=500)
+
+    # ตรวจหาตำแหน่งและ encodings ของใบหน้า
+    boxes = face_recognition.face_locations(frame)
+    encodings = face_recognition.face_encodings(frame, boxes)
+    names = []
+
+    for encoding in encodings:
+        # เปรียบเทียบ face encodings
+        matches = face_recognition.compare_faces(data["encodings"], encoding)
+        name = "ไม่รู้จัก"
+
+        if True in matches:
+            # ระบุบุคคลที่มีการตรงคู่มากที่สุด
+            matchedIdxs = [i for (i, b) in enumerate(matches) if b]
+            counts = {}
+
+            for i in matchedIdxs:
+                name = data["names"][i]
+                counts[name] = counts.get(name, 0) + 1
+
+            name = max(counts, key=counts.get)
+
+            # พิมพ์ชื่อถ้าต่างจากชื่อปัจจุบัน
+            if currentname != name:
+                currentname = name
+                print(currentname)
+        else:
+            # เซฟรูปใบหน้าใน dataset และทำการเทรนใหม่เฉพาะใบหน้านี้
+            if currentname == "ไม่รู้จัก":
+                num = random.random()
+                data["names"].append(str(num))
+                data["encodings"].append(encoding)
+                print(data["names"])
+
+                face_id = len(os.listdir(dataset_path)) + 1
+                face_folder_path = os.path.join(dataset_path, f"ID{face_id:02d}")
+
+                if not os.path.exists(face_folder_path):
+                    os.makedirs(face_folder_path)
+
+                face_filename = os.path.join(face_folder_path, f"{face_id:02d}.jpg")
+                cv2.imwrite(face_filename, frame[boxes[0][0]:boxes[0][2], boxes[0][3]:boxes[0][1]])
+
+                # ทำการเทรนข้อมูลใหม่เฉพาะใบหน้านี้
+                train_data = {"encodings": [encoding], "names": [str(num)]}
+                with open(encodingsP, "wb") as f:
+                    f.write(pickle.dumps(train_data))
+
+                # ส่งข้อมูล Line Notify
+                send_line_notify("พบใบหน้าใหม่", image_path=face_filename)
+
+        names.append(name)
+
+    # วาดสี่เหลี่ยมและชื่อลงบนเฟรม
+    for ((top, right, bottom, left), name) in zip(boxes, names):
+        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 225), 2)
+        y = top - 15 if top - 15 > 15 else top + 15
+        cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 255), 2)
+
+    # แสดงเฟรม
+    cv2.imshow("การระบุใบหน้ากำลังทำงาน", frame)
+
+    # ตรวจสอบปุ่ม 'q' เพื่อออกจากลูป
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord("q"):
+        break
+
+    # อัปเดต FPS counter
+    fps.update()
+
+# หยุด video stream และ FPS counter
+fps.stop()
+print("[INFO] เวลาที่ใช้: {:.2f}".format(fps.elapsed()))
+print("[INFO] ประมาณ FPS: {:.2f}".format(fps.fps()))
+
+# ปิดหน้าต่างทั้งหมด
+cv2.destroyAllWindows()
+vs.stop()

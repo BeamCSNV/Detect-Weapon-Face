@@ -1,34 +1,48 @@
+from imutils import paths
 import face_recognition
-import os
+#import argparse
 import pickle
+import cv2
+import os
 
-# ระบุโฟลเดอร์ที่มีรูปภาพของแต่ละบุคคล
-dataset_path = "C:/Users/HP/Desktop/Yolov8 Detect Face&Weapon/Example Pickle/dataset"
+# our images are located in the dataset folder
+print("[INFO] start processing faces...")
+imagePaths = list(paths.list_images("dataset"))
 
-# เก็บข้อมูลใบหน้าและชื่อ
-known_encodings = []
-known_names = []
+# initialize the list of known encodings and known names
+knownEncodings = []
+knownNames = []
 
-# วนลูปผ่านรูปภาพในโฟลเดอร์ dataset
-for person_name in os.listdir(dataset_path):
-    person_folder = os.path.join(dataset_path, person_name)
+# loop over the image paths
+for (i, imagePath) in enumerate(imagePaths):
+	# extract the person name from the image path
+	print("[INFO] processing image {}/{}".format(i + 1,
+		len(imagePaths)))
+	name = imagePath.split(os.path.sep)[-2]
 
-    if os.path.isdir(person_folder):
-        for filename in os.listdir(person_folder):
-            image_path = os.path.join(person_folder, filename)
+	# load the input image and convert it from RGB (OpenCV ordering)
+	# to dlib ordering (RGB)
+	image = cv2.imread(imagePath)
+	rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-            # โหลดรูปภาพและหา face encoding
-            image = face_recognition.load_image_file(image_path)
-            face_encoding = face_recognition.face_encodings(image)
+	# detect the (x, y)-coordinates of the bounding boxes
+	# corresponding to each face in the input image
+	boxes = face_recognition.face_locations(rgb,
+		model="hog")
 
-            if len(face_encoding) > 0:
-                # ให้ใบหน้าในรูปนี้มีชื่อ "Custom_Name" แทน
-                known_encodings.append(face_encoding[0])
-                known_names.append("Custom_Name")
+	# compute the facial embedding for the face
+	encodings = face_recognition.face_encodings(rgb, boxes)
 
-# บันทึกข้อมูลใบหน้าในไฟล์ pickle
-data = {"encodings": known_encodings, "names": known_names}
-with open("encodings.pickle", "wb") as f:
-    f.write(pickle.dumps(data))
+	# loop over the encodings
+	for encoding in encodings:
+		# add each encoding + name to our set of known names and
+		# encodings
+		knownEncodings.append(encoding)
+		knownNames.append(name)
 
-print("Encoding completed. 'encodings.pickle' file created.")
+# dump the facial encodings + names to disk
+print("[INFO] serializing encodings...")
+data = {"encodings": knownEncodings, "names": knownNames}
+f = open("encodings.pickle", "wb")
+f.write(pickle.dumps(data))
+f.close()
